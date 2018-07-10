@@ -14,7 +14,21 @@ int zhixian() {
 		return 1;
 	}
 	imshow("src", test3);
-	RGBAVG(test3, 2);
+	findtheshiro(test3,test2);
+	killnoise(test3, 10);
+	vector<vector<double>> tane;
+	tane.resize(2);
+	tane[0].resize(3);
+	tane[1].resize(3);
+	tane[0][0] = test3.at<uchar>(test3.rows / 2, test3.cols / 4);
+	tane[0][1] = test3.rows / 2;
+	tane[0][2] = test3.cols / 4;
+	tane[1][0] = test3.at<uchar>(test3.rows / 2, test3.cols / 4*3);
+	tane[1][1] = test3.rows / 2;
+	tane[1][2] = test3.cols / 4*3;
+	Kmeans(test3, tane, 2);
+
+	imshow("src2", test3);
 	waitKey(0);
 	return 0;
 }
@@ -92,4 +106,113 @@ void on_mouse(int event, int x, int y, int flags, void *ustc) {
 	}
 
 
+}
+
+void findtheshiro(Mat &src, Mat &dst) {
+	for (int i = 0; i < src.rows; i++)
+	{
+		int avgr = 0, avgg = 0, avgb = 0;
+		for (int j = 0; j < src.cols; j++)
+		{
+			avgb += src.at<Vec3b>(i, j)[0];
+			avgg += src.at<Vec3b>(i, j)[1];
+			avgr += src.at<Vec3b>(i, j)[2];
+		}
+		avgb /= src.cols;
+		avgg /= src.cols;
+		avgr /= src.cols;
+		for (int j = 0; j < src.cols; j++)
+		{
+			if (src.at<Vec3b>(i, j)[0] >= avgb)src.at<Vec3b>(i, j)[0] -= avgb; else src.at<Vec3b>(i, j)[0] = 0;
+			if(src.at<Vec3b>(i, j)[1]>=avgg)src.at<Vec3b>(i, j)[1]-=avgg; else src.at<Vec3b>(i, j)[1] = 0;
+			if(src.at<Vec3b>(i, j)[2]>=avgr)src.at<Vec3b>(i, j)[2]-=avgr; else src.at<Vec3b>(i, j)[2] = 0;
+		}
+	}
+	
+}
+
+void killnoise(Mat &src, int windowssize) {
+	cvtColor(src,src,CV_BGR2GRAY);
+	Mat dst;
+	dst = Mat::zeros(src.size(), CV_8UC1);
+	for (int i = 0; i < src.rows; i++) {
+		for (int j = 0; j < src.cols-windowssize; j++) {
+			int sum = 0;
+			for (int k = 0; k < windowssize; k++) {
+				sum += src.at<uchar>(i, j+k);
+			}
+			if (sum > windowssize * 20)dst.at<uchar>(i, j) = 255; else dst.at<uchar>(i, j) = 0;
+		}
+	}
+	src = dst;
+}
+
+void tajyuukaisoudo(Mat &src, int tajyuu) {
+	Mat dst;
+	dst = Mat::zeros(src.size(), CV_8UC1);
+	for (int i = 0; i < src.rows-tajyuu*3; i++) {
+		for (int j = 0; j < src.cols-tajyuu*3; j++) {
+			int toupiao = 0;
+			int sum = 0; 
+			for (int n = 0; n < tajyuu; n++) {
+				for (int p = 0; p < n * 3; p++) {
+					for (int q = 0; q < n * 3; q++) {
+						if (src.at<uchar>(i + p, j + q) == 255)sum += 1;
+					}
+				}
+				if (sum > n*n * 3)toupiao += 1;
+			}
+			if (toupiao > tajyuu / 2)dst.at<uchar>(i, j) = 255;
+		}
+	}
+	src = dst;
+}
+
+void Kmeans(Mat &src, vector<vector<double>>p, int k) {
+	Mat dst;
+	dst = Mat::zeros(src.size(), CV_8UC1);
+	for (int i = 0; i < src.rows; i++)
+		for (int j = 0; j < src.cols; j++)
+		{
+			int kyouri = 0, mini = 59999;
+			for (int n = 0; n < k; n++) {
+				kyouri =
+					(src.at<uchar>(i, j) - p[k][0])*(src.at<uchar>(i, j) - p[k][0]) +
+					(i - p[k][1])*(i - p[k][1]) + (j - p[k][2])*(j - p[k][2]);
+				if (kyouri < mini)
+					dst.at<uchar>(i, j) = n;
+			}
+
+		}
+	vector<vector<double>>q;
+	q.resize(k);
+	for (int i = 0; i < k; i++) {
+		q[i].resize(3);
+	}
+	vector<int> count;
+	count.resize(k);
+	for (int i = 0; i < src.rows; i++) {
+		for (int j = 0; j < src.cols; j++) {
+			int s = dst.at<uchar>(i, j);
+			q[s][0] += src.at<uchar>(i, j);
+			q[s][1] += i;
+			q[s][2] += j;
+			count[s]++;
+		}
+	}
+	for (int i = 0; i < k; i++) {
+		for (int j = 0; j < 3; j++) {
+			q[i][j] /= count[i];
+		}
+	}
+	double piancha = 0;
+	for (int i = 0; i < k; i++) {
+		for (int j = 0; j < 3; j++) {
+			piancha += (p[i][j] - q[i][j])*(p[i][j] - q[i][j]);
+		}
+	}
+	if (piancha < 1)
+		return;
+	Kmeans(src, q, k);
+	imshow("kekka", dst);
 }
